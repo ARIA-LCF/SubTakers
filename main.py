@@ -43,7 +43,7 @@ def show_banner():
     \___ \| | | | '_ \| __/ _` | |/ / _ \ '__|
      ___) | |_| | |_) | || (_| |   <  __/ |   
     |____/ \__,_|_.__/ \__\__,_|_|\_\___|_|   
-    Telegram Channel: @LCFkie | Version: 1.0                                    
+    Telegram Channel: @LCFkie | Version: 2.0                                    
                                          
     """
     print(banner)
