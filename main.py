@@ -20,6 +20,21 @@ def create_output_directory():
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
+# پیدا کردن آخرین پوشه اسکن
+def find_latest_scan():
+    """پیدا کردن آخرین پوشه اسکن برای ادامه کار"""
+    results_dir = "results"
+    if not os.path.exists(results_dir):
+        return None
+    
+    scan_folders = [f for f in os.listdir(results_dir) 
+                   if f.startswith("scan_") and os.path.isdir(os.path.join(results_dir, f))]
+    
+    if not scan_folders:
+        return None
+    
+    return os.path.join(results_dir, max(scan_folders))
+
 # نمایش بنر
 def show_banner():
     banner = r"""
@@ -44,7 +59,7 @@ def show_main_menu():
     print("1. Find Subdomains")
     print("2. Check CNAME Records")
     print("3. Detect Subdomain Takeover")
-    print("4. Back to Previous Menu")
+    print("4. Continue from Previous Scan")
     print("5. Help & Information")
     print("0. Exit")
     print("=" * 60)
@@ -71,6 +86,9 @@ def show_help():
     print("   - Checks for potential subdomain takeover vulnerabilities")
     print("   - Input: cnames.txt (default)")
     print("   - Output: takeover_results.json")
+    print()
+    print("4. Continue from Previous Scan:")
+    print("   - Continue working with the last scan folder")
     print()
     print("What is Subdomain Takeover?")
     print("Subdomain takeover occurs when a subdomain points to a service")
@@ -125,14 +143,15 @@ def install_tools():
     for tool in tools:
         run_command(tool, f"Installing {tool.split()[0]}")
 
-def subdomain_enumeration():
+def subdomain_enumeration(output_dir=None):
     """انجام Subdomain Enumeration با ابزارهای مختلف"""
     print("\n" + "=" * 60)
     print("SUBDOMAIN ENUMERATION")
     print("=" * 60)
     
-    # ایجاد پوشه خروجی
-    output_dir = create_output_directory()
+    # ایجاد پوشه خروجی اگر ارائه نشده
+    if not output_dir:
+        output_dir = create_output_directory()
     print(f"Output directory: {output_dir}")
     
     # دریافت ورودی
@@ -232,33 +251,30 @@ def subdomain_enumeration():
     
     return list(all_subdomains), output_dir
 
-def check_cnames():
+def check_cnames(output_dir=None):
     """بررسی CNAME records برای ساب‌دامین‌ها"""
     print("\n" + "=" * 60)
     print("CHECK CNAME RECORDS")
     print("=" * 60)
     
-    # ایجاد پوشه خروجی
-    output_dir = create_output_directory()
+    # ایجاد پوشه خروجی اگر ارائه نشده
+    if not output_dir:
+        output_dir = create_output_directory()
     print(f"Output directory: {output_dir}")
     
     # دریافت فایل ورودی
     input_file = input("Enter subdomains file path (default: use latest results): ").strip()
     if not input_file:
         # یافتن آخرین فایل subdomains_final.txt
-        results_dir = "results"
-        if not os.path.exists(results_dir):
-            print("No results directory found! Please run subdomain enumeration first.")
-            return None, None
-        
-        # پیدا کردن آخرین پوشه اسکن
-        scan_folders = [f for f in os.listdir(results_dir) if f.startswith("scan_") and os.path.isdir(os.path.join(results_dir, f))]
-        if not scan_folders:
-            print("No scan folders found! Please run subdomain enumeration first.")
-            return None, None
-        
-        latest_scan = max(scan_folders)
-        input_file = os.path.join(results_dir, latest_scan, "subdomains_final.txt")
+        if not output_dir:
+            latest_scan = find_latest_scan()
+            if latest_scan:
+                input_file = os.path.join(latest_scan, "subdomains_final.txt")
+            else:
+                print("No results directory found! Please run subdomain enumeration first.")
+                return None, None
+        else:
+            input_file = os.path.join(output_dir, "subdomains_final.txt")
     
     if not os.path.isfile(input_file):
         print(f"File not found: {input_file}")
@@ -472,33 +488,30 @@ class SubdomainTakeoverChecker:
         print(f"✓ Vulnerable subdomains saved to: {vulnerable_output}")
         print(f"✓ Total vulnerable: {vulnerable_count}")
 
-def detect_takeover():
+def detect_takeover(output_dir=None):
     """تشخیص Subdomain Takeover"""
     print("\n" + "=" * 60)
     print("DETECT SUBDOMAIN TAKEOVER")
     print("=" * 60)
     
-    # ایجاد پوشه خروجی
-    output_dir = create_output_directory()
+    # ایجاد پوشه خروجی اگر ارائه نشده
+    if not output_dir:
+        output_dir = create_output_directory()
     print(f"Output directory: {output_dir}")
     
     # دریافت فایل ورودی
     input_file = input("Enter CNAME file path (default: use latest results): ").strip()
     if not input_file:
         # یافتن آخرین فایل cnames.txt
-        results_dir = "results"
-        if not os.path.exists(results_dir):
-            print("No results directory found! Please run CNAME check first.")
-            return None, None
-        
-        # پیدا کردن آخرین پوشه اسکن
-        scan_folders = [f for f in os.listdir(results_dir) if f.startswith("scan_") and os.path.isdir(os.path.join(results_dir, f))]
-        if not scan_folders:
-            print("No scan folders found! Please run CNAME check first.")
-            return None, None
-        
-        latest_scan = max(scan_folders)
-        input_file = os.path.join(results_dir, latest_scan, "cnames.txt")
+        if not output_dir:
+            latest_scan = find_latest_scan()
+            if latest_scan:
+                input_file = os.path.join(latest_scan, "cnames.txt")
+            else:
+                print("No results directory found! Please run CNAME check first.")
+                return None, None
+        else:
+            input_file = os.path.join(output_dir, "cnames.txt")
     
     if not os.path.isfile(input_file):
         print(f"File not found: {input_file}")
@@ -526,6 +539,78 @@ def detect_takeover():
     
     return results, output_dir
 
+def continue_from_previous():
+    """ادامه کار از اسکن قبلی"""
+    print("\n" + "=" * 60)
+    print("CONTINUE FROM PREVIOUS SCAN")
+    print("=" * 60)
+    
+    latest_scan = find_latest_scan()
+    if not latest_scan:
+        print("No previous scan found! Please run a scan first.")
+        return
+    
+    print(f"Found previous scan: {latest_scan}")
+    
+    # بررسی فایل‌های موجود در پوشه
+    files = os.listdir(latest_scan)
+    available_files = {
+        "domains.txt": "domains.txt" in files,
+        "subdomains_final.txt": "subdomains_final.txt" in files,
+        "cnames.txt": "cnames.txt" in files,
+        "takeover_results.json": "takeover_results.json" in files
+    }
+    
+    print("\nAvailable files in the scan folder:")
+    for file, exists in available_files.items():
+        status = "✓" if exists else "✗"
+        print(f"  {status} {file}")
+    
+    print("\nWhat would you like to do?")
+    print("1. Continue with subdomain enumeration")
+    print("2. Continue with CNAME check")
+    print("3. Continue with takeover detection")
+    print("4. View results")
+    print("0. Back to main menu")
+    
+    choice = input("Please select an option (0-4): ").strip()
+    
+    if choice == '1':
+        subdomain_enumeration(latest_scan)
+    elif choice == '2':
+        check_cnames(latest_scan)
+    elif choice == '3':
+        detect_takeover(latest_scan)
+    elif choice == '4':
+        # نمایش نتایج موجود
+        if available_files["takeover_results.json"]:
+            with open(os.path.join(latest_scan, "takeover_results.json"), 'r') as f:
+                results = json.load(f)
+                vulnerable_count = results['metadata']['vulnerable_count']
+                print(f"\nVulnerable subdomains found: {vulnerable_count}")
+                
+                if vulnerable_count > 0:
+                    print("\nVulnerable subdomains:")
+                    for result in results['results']:
+                        if result['is_vulnerable']:
+                            print(f"- {result['subdomain']} -> {result['cname_target']}")
+        
+        elif available_files["cnames.txt"]:
+            with open(os.path.join(latest_scan, "cnames.txt"), 'r') as f:
+                cnames = f.readlines()
+                print(f"\nCNAME records found: {len(cnames)}")
+        
+        elif available_files["subdomains_final.txt"]:
+            with open(os.path.join(latest_scan, "subdomains_final.txt"), 'r') as f:
+                subdomains = f.readlines()
+                print(f"\nSubdomains found: {len(subdomains)}")
+        
+        input("\nPress Enter to continue...")
+    elif choice == '0':
+        return
+    else:
+        print("Invalid choice!")
+
 def main():
     """تابع اصلی"""
     show_banner()
@@ -552,8 +637,7 @@ def main():
             if output_dir:
                 print(f"\nTakeover detection completed! Results saved in: {output_dir}")
         elif choice == '4':
-            print("Returning to main menu...")
-            continue
+            continue_from_previous()
         elif choice == '5':
             show_help()
         else:
