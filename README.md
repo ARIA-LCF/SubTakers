@@ -50,11 +50,11 @@ sudo apt install golang
 
 ```bash
 # دانلود اسکریپت
-git clone https://github.com/your-repo/subdomain-takeover-tool.git
-cd subdomain-takeover-tool
+git clone https://github.com/ARIA-LCF/SubTakers.git
+cd SubTakers
 
 # اجرای ابزار
-python3 subdomain_tool.py
+python3 main.py
 ```
 
 ## 🎮 نحوه استفاده
