@@ -7,10 +7,65 @@ import dns.resolver
 import concurrent.futures
 import urllib3
 import json
+import re
 from datetime import datetime
 
 # غیرفعال کردن هشدارهای SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# پیدا کردن آخرین شماره اسکن
+def find_latest_scan_number():
+    """پیدا کردن آخرین شماره اسکن برای پیشنهاد شماره بعدی"""
+    results_dir = "results"
+    if not os.path.exists(results_dir):
+        return 0
+    
+    scan_folders = [f for f in os.listdir(results_dir) 
+                   if f.startswith("scan-") and os.path.isdir(os.path.join(results_dir, f))]
+    
+    if not scan_folders:
+        return 0
+    
+    # استخراج شماره‌ها از نام پوشه‌ها
+    numbers = []
+    for folder in scan_folders:
+        match = re.match(r'scan-(\d+)', folder)
+        if match:
+            numbers.append(int(match.group(1)))
+    
+    return max(numbers) if numbers else 0
+
+# دریافت نام اسکن از کاربر
+def get_scan_name():
+    """دریافت نام اسکن از کاربر با پیشنهاد هوشمند"""
+    print("\n" + "=" * 60)
+    print("SCAN NAME SETUP")
+    print("=" * 60)
+    
+    latest_number = find_latest_scan_number()
+    default_name = f"scan-{latest_number + 1}"
+    
+    print(f"Latest scan number found: {latest_number}")
+    print(f"Suggested scan name: {default_name}")
+    print("\nYou can:")
+    print("1. Press Enter to use the suggested name")
+    print("2. Enter a custom name (e.g., my-project-scan)")
+    print("3. Enter a specific number (e.g., 5 for scan-5)")
+    
+    scan_name = input(f"\nEnter scan name (default: {default_name}): ").strip()
+    
+    if not scan_name:
+        scan_name = default_name
+    elif scan_name.isdigit():
+        # اگر فقط عدد وارد کرد، به scan- تبدیل کن
+        scan_name = f"scan-{scan_name}"
+    
+    # ایجاد پوشه اسکن
+    scan_dir = os.path.join("results", scan_name)
+    os.makedirs(scan_dir, exist_ok=True)
+    
+    print(f"✓ Scan directory created: {scan_dir}")
+    return scan_name, scan_dir
 
 # ایجاد پوشه خروجی بر اساس تاریخ و زمان
 def create_output_directory():
@@ -28,11 +83,24 @@ def find_latest_scan():
         return None
     
     scan_folders = [f for f in os.listdir(results_dir) 
-                   if f.startswith("scan_") and os.path.isdir(os.path.join(results_dir, f))]
+                   if f.startswith("scan-") and os.path.isdir(os.path.join(results_dir, f))]
     
     if not scan_folders:
         return None
     
+    # مرتب کردن بر اساس شماره
+    numbered_folders = []
+    for folder in scan_folders:
+        match = re.match(r'scan-(\d+)', folder)
+        if match:
+            numbered_folders.append((int(match.group(1)), folder))
+    
+    if numbered_folders:
+        # آخرین شماره را برگردان
+        latest_number = max(num for num, _ in numbered_folders)
+        return os.path.join(results_dir, f"scan-{latest_number}")
+    
+    # اگر پوشه‌های نامرتبط وجود داشت، آخرین را برگردان
     return os.path.join(results_dir, max(scan_folders))
 
 # نمایش بنر
@@ -43,7 +111,7 @@ def show_banner():
     \___ \| | | | '_ \| __/ _` | |/ / _ \ '__|
      ___) | |_| | |_) | || (_| |   <  __/ |   
     |____/ \__,_|_.__/ \__\__,_|_|\_\___|_|   
-    Telegram Channel: @LCFkie | Version: 2.0                                    
+    Telegram Channel: @LCFkie | Version: 3.0                                    
                                          
     """
     print(banner)
@@ -149,7 +217,7 @@ def subdomain_enumeration(output_dir=None):
     print("SUBDOMAIN ENUMERATION")
     print("=" * 60)
     
-    # ایجاد پوشه خروجی اگر ارائه نشده
+    # استفاده از پوشه ارائه شده یا ایجاد پوشه جدید
     if not output_dir:
         output_dir = create_output_directory()
     print(f"Output directory: {output_dir}")
@@ -257,24 +325,16 @@ def check_cnames(output_dir=None):
     print("CHECK CNAME RECORDS")
     print("=" * 60)
     
-    # ایجاد پوشه خروجی اگر ارائه نشده
+    # استفاده از پوشه ارائه شده یا ایجاد پوشه جدید
     if not output_dir:
         output_dir = create_output_directory()
     print(f"Output directory: {output_dir}")
     
     # دریافت فایل ورودی
-    input_file = input("Enter subdomains file path (default: use latest results): ").strip()
+    input_file = input("Enter subdomains file path (default: use current scan results): ").strip()
     if not input_file:
-        # یافتن آخرین فایل subdomains_final.txt
-        if not output_dir:
-            latest_scan = find_latest_scan()
-            if latest_scan:
-                input_file = os.path.join(latest_scan, "subdomains_final.txt")
-            else:
-                print("No results directory found! Please run subdomain enumeration first.")
-                return None, None
-        else:
-            input_file = os.path.join(output_dir, "subdomains_final.txt")
+        # استفاده از فایل در پوشه فعلی
+        input_file = os.path.join(output_dir, "subdomains_final.txt")
     
     if not os.path.isfile(input_file):
         print(f"File not found: {input_file}")
@@ -494,24 +554,16 @@ def detect_takeover(output_dir=None):
     print("DETECT SUBDOMAIN TAKEOVER")
     print("=" * 60)
     
-    # ایجاد پوشه خروجی اگر ارائه نشده
+    # استفاده از پوشه ارائه شده یا ایجاد پوشه جدید
     if not output_dir:
         output_dir = create_output_directory()
     print(f"Output directory: {output_dir}")
     
     # دریافت فایل ورودی
-    input_file = input("Enter CNAME file path (default: use latest results): ").strip()
+    input_file = input("Enter CNAME file path (default: use current scan results): ").strip()
     if not input_file:
-        # یافتن آخرین فایل cnames.txt
-        if not output_dir:
-            latest_scan = find_latest_scan()
-            if latest_scan:
-                input_file = os.path.join(latest_scan, "cnames.txt")
-            else:
-                print("No results directory found! Please run CNAME check first.")
-                return None, None
-        else:
-            input_file = os.path.join(output_dir, "cnames.txt")
+        # استفاده از فایل در پوشه فعلی
+        input_file = os.path.join(output_dir, "cnames.txt")
     
     if not os.path.isfile(input_file):
         print(f"File not found: {input_file}")
@@ -545,12 +597,48 @@ def continue_from_previous():
     print("CONTINUE FROM PREVIOUS SCAN")
     print("=" * 60)
     
-    latest_scan = find_latest_scan()
-    if not latest_scan:
-        print("No previous scan found! Please run a scan first.")
+    # نمایش لیست اسکن‌های موجود
+    results_dir = "results"
+    if not os.path.exists(results_dir):
+        print("No results directory found! Please run a scan first.")
         return
     
-    print(f"Found previous scan: {latest_scan}")
+    scan_folders = [f for f in os.listdir(results_dir) 
+                   if f.startswith("scan-") and os.path.isdir(os.path.join(results_dir, f))]
+    
+    if not scan_folders:
+        print("No previous scans found! Please run a scan first.")
+        return
+    
+    # مرتب کردن بر اساس شماره
+    numbered_folders = []
+    for folder in scan_folders:
+        match = re.match(r'scan-(\d+)', folder)
+        if match:
+            numbered_folders.append((int(match.group(1)), folder))
+    
+    numbered_folders.sort(reverse=True)  # جدیدترین اول
+    
+    print("Available scans:")
+    for i, (number, folder) in enumerate(numbered_folders[:10], 1):  # فقط 10 تا آخرین
+        print(f"{i}. {folder}")
+    
+    print("\nEnter scan number to continue, or press Enter for the latest scan:")
+    choice = input("Choice: ").strip()
+    
+    if not choice:
+        # آخرین اسکن
+        selected_scan = numbered_folders[0][1]
+    elif choice.isdigit() and 1 <= int(choice) <= len(numbered_folders):
+        # انتخاب بر اساس شماره
+        selected_scan = numbered_folders[int(choice) - 1][1]
+    else:
+        print("Invalid choice!")
+        return
+    
+    latest_scan = os.path.join(results_dir, selected_scan)
+    print(f"\nSelected scan: {selected_scan}")
+    print(f"Path: {latest_scan}")
     
     # بررسی فایل‌های موجود در پوشه
     files = os.listdir(latest_scan)
@@ -618,6 +706,12 @@ def main():
     # ایجاد پوشه results اصلی
     os.makedirs("results", exist_ok=True)
     
+    # دریافت نام اسکن از کاربر
+    scan_name, scan_dir = get_scan_name()
+    
+    print(f"\nCurrent scan session: {scan_name}")
+    print(f"Working directory: {scan_dir}")
+    
     while True:
         choice = show_main_menu()
         
@@ -625,15 +719,15 @@ def main():
             print("Goodbye!")
             break
         elif choice == '1':
-            subdomains, output_dir = subdomain_enumeration()
+            subdomains, output_dir = subdomain_enumeration(scan_dir)
             if output_dir:
                 print(f"\nScan completed! Results saved in: {output_dir}")
         elif choice == '2':
-            cname_file, output_dir = check_cnames()
+            cname_file, output_dir = check_cnames(scan_dir)
             if output_dir:
                 print(f"\nCNAME check completed! Results saved in: {output_dir}")
         elif choice == '3':
-            results, output_dir = detect_takeover()
+            results, output_dir = detect_takeover(scan_dir)
             if output_dir:
                 print(f"\nTakeover detection completed! Results saved in: {output_dir}")
         elif choice == '4':
